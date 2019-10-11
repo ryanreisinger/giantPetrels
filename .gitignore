@@ -42,3 +42,7 @@ rsconnect/
 # Rasters
 *.grd
 *.gri
+
+# Tiffs
+*.tif
+*.tiff
