@@ -20,11 +20,11 @@ library(cowplot)
 setwd("D:/PEI_Toppredators/Giant Petrels/Working/giantPetrels")
 
 # --------------------------------
-## Plotting stuff
+## Plotting parameters
 
 ## Figure widths in mm
 single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size
@@ -43,10 +43,6 @@ dat$Culmen_depth <- as.numeric(dat$Culmen_depth)
 
 # --------------------------------
 ## Restrictions
-
-## Remove individuals without bill measurements
-# dat <- dat[!is.na(dat$Culmen_length), ]
-# dat <- dat[!is.na(dat$Culmen_depth), ]
 
 ## Keep only incubating indiduals
 dat <- dat[dat$breeding_stage == "Incubation" | dat$breeding_stage == "incubating", ]
@@ -88,7 +84,7 @@ for (i in 1:nrow(dat)) {
 }
 
 # --------------------------------
-## Better deployment locations
+## More accurate deployment locations
 dat[dat$individual_id == "SGP07_KD_SEP_2015", "deployment_decimal_latitude"] <- -46.96361
 dat[dat$individual_id == "SGP07_KD_SEP_2015", "deployment_decimal_longitude"] <- 37.85207
 
@@ -166,7 +162,7 @@ nrow(met[met$sex.m == "Male" | met$sex.m == "Female", ])
 ## Plot - Bill dimensions
 pdf("./Plots/billDimensions.pdf",
     useDingbats = FALSE,
-    width = double.col.sup / fig.scale,
+    width = double.col / fig.scale,
     height = single.col / fig.scale)
 ggplot(data = met, aes(x = Culmen_length,
                        y = Culmen_depth,
@@ -246,6 +242,16 @@ for (i in 1:length(ids)) {
   }
 }
 
+# What proportion of data are removed?
+foo <- function(x, y) {
+  df = nrow(x) - nrow(y)
+  df = df/nrow(x)
+  df = df*100
+  return(df)
+}
+foo(x = dat, y = fn)
+rm(foo)
+
 ## Replace dat
 dat <- fn
 rm(fn)
@@ -291,9 +297,9 @@ met <- dat[!duplicated(dat$individual_id), ]
 ## Automatically assign trips
 ## based on runs of successive home locations
 
-## Some runs code from:
+## Some of this runs code is from:
 ## https://masterr.org/r/how-to-find-consecutive-repeats-in-r/
-## By GUANGMING LANG
+## by GUANGMING LANG
 
 ## First update ids
 ids <- unique(dat$individual_id)
@@ -449,9 +455,11 @@ abline(v = c(50, 150), col = "red")
 plot(sort(tripdists[tripdists < 500]))
 abline(h = c(50, 150), col = "red")
 
+
 ## Plots
 tr4 <- tr3
 tr4$lag <- NA
+tr4$Duration <- NA
 tr4 <- tr4[0, ]
 
 for (i in 1:length(trips)) {
@@ -462,11 +470,34 @@ for (i in 1:length(trips)) {
   
   tms <- cumsum(tms)
   trp$lag <- tms
+  trp$Duration <- max(tms, na.rm = T)
   tr4 <- rbind.data.frame(tr4, trp)
 }
 
+# Look at trip duration and distance together to classify long and short trips
+# this produces two groups where distance distinction is very high (~ 800 km)
+foo <- tr4[ , c("track_id", "trip.Maxdist", "Duration")]
+foo <- unique(foo)
+foo <- foo[complete.cases(foo), ]
+
+foo_k <- kmeans(foo[, 2:3], centers = 2)
+
+foo$group <- foo_k$cluster
+plot(foo$trip.Maxdist, foo$Duration/24, col = as.factor(foo$group), xlab = "Trip distance (km)", ylab = "Trip duration (days)")
+
+# Try univariate breaks
+library(classInt)
+classIntervals(var = foo$trip.Maxdist, n = 2, style = "quantile")$brks # Quantile
+classIntervals(var = foo$trip.Maxdist, n = 2, style = "kmeans")$brks # univariate k-means
+classIntervals(var = foo$trip.Maxdist, n = 2, style = "jenks")$brks # Jenks
+
+# Set threshold to 50 km, according to quantile breaks
+thresh <- 50
+
+rm(foo, foo_k)
+
 ## Long trips only
-tr4long <- tr4[tr4$trip.Maxdist > 150, ]
+tr4long <- tr4[tr4$trip.Maxdist > thresh, ]
 disp.long <- ggplot(tr4long, aes(x = lag/24, y = Distance, group = trip_id, colour = sex)) +
   geom_line() +
   scale_colour_manual(values = c("#4daf4a", "#984ea3"),
@@ -482,7 +513,7 @@ disp.long
 
 
 ## Short trips only
-tr4short <- tr4[tr4$trip.Maxdist < 150, ]
+tr4short <- tr4[tr4$trip.Maxdist < thresh, ]
 
 disp.short <- ggplot(tr4short, aes(x = lag/24, y = Distance, group = trip_id, colour = sex)) +
   geom_line() +
@@ -506,8 +537,8 @@ dev.off()
 
 ## Combined plot
 tr4sub <- tr4
-tr4sub[tr4sub$trip.Maxdist > 150, "which"] <- "Long trips"
-tr4sub[tr4sub$trip.Maxdist < 150, "which"] <- "Short trips"
+tr4sub[tr4sub$trip.Maxdist > thresh, "which"] <- "Long trips"
+tr4sub[tr4sub$trip.Maxdist < thresh, "which"] <- "Short trips"
 
 dispBoth <- ggplot(tr4sub, aes(x = lag/24, y = Distance, group = trip_id, colour = sex)) +
   geom_line() +
@@ -579,14 +610,14 @@ for (i in 1:nrow(summary)) {
     summarise(tripmax = max(Distance, na.rm = T))
   
   # Long trips?
-  if(any(d2$tripmax > 150)) {
+  if(any(d2$tripmax > thresh)) {
     d1$long.trip <- "Y"
   } else {
     d1$long.trip <- "N"
   }
   
   # Short trips?
-  if(any(d2$tripmax < 150)) {
+  if(any(d2$tripmax < thresh)) {
     d1$short.trip <- "Y"
   } else {
     d1$short.trip <- "N"
@@ -600,9 +631,21 @@ summary <- hold
 ## Write to file
 write.csv(summary, file = "./Output/SummaryTable.csv", row.names = F)
 
+# Do males that forage at sea have shorter bills?
+t.test(summary[summary$long.trip == "Y" & summary$sex == "Male", "Culmen_length"],
+       summary[summary$long.trip == "N" & summary$sex == "Male", "Culmen_length"])
+
+
 ## t-test of trip durations
 t.test(summary[summary$long.trip == "Y" & summary$sex == "Male", "duration"],
        summary[summary$long.trip == "Y" & summary$sex == "Female", "duration"])
+
+## Summary of individuals in different groups
+foo <- summary
+foo <- group_by(summary, scientific_name, long.trip, sex)
+foo <- count(foo)
+foo
+rm(foo)
 
 ## Look at relationship between distance, time on land and sex
 pdf("./Plots/proportionLand.pdf",
@@ -611,7 +654,7 @@ pdf("./Plots/proportionLand.pdf",
     height = single.col / fig.scale)
 ggplot(data = summary, aes(y = land.percent, x = Maxdist, colour = sex, shape = scientific_name)) +
   geom_point(size = 1.5) +
-  geom_vline(xintercept = 150, colour = "grey") +
+  geom_vline(xintercept = thresh, colour = "grey") +
   scale_shape_manual(values = c(16, 17), name = "Species") +
   scale_colour_manual(values = c("#4daf4a", "#984ea3"), name = "Sex") +
   labs(x = "Maximum distance from nest (km)", y = "Proportion of locations on land (%)") +
@@ -622,12 +665,9 @@ ggplot(data = summary, aes(y = land.percent, x = Maxdist, colour = sex, shape = 
 dev.off()
 
 # Summary of time on land
-min(summary[summary$Maxdist < 150, ]$land.percent, na.rm = T)
-max(summary[summary$Maxdist < 150, ]$land.percent, na.rm = T)
-mean(summary[summary$Maxdist < 150, ]$land.percent, na.rm = T)
-
-# Values for the females
-summary[summary$Maxdist < 150 & summary$sex == "Female", ]$land.percent
+min(summary[summary$Maxdist < thresh, ]$land.percent, na.rm = T)
+max(summary[summary$Maxdist < thresh, ]$land.percent, na.rm = T)
+mean(summary[summary$Maxdist < thresh, ]$land.percent, na.rm = T)
 
 #-----------------------------------
 ## Plot of tracking periods
@@ -638,28 +678,21 @@ summary$year <- format(summary$date.end, format = "%Y")
 
 summary$individual_id <- factor(summary$individual_id, levels = summary$individual_id[order(summary$date.start)])
 
-# library(devtools)
-# devtools::install_github("zeehio/facetscales")
-# library(facetscales)
-# 
-# scales_y <- list(
-# "2015" = scale_y_datetime(limits = c(as.POSIXct("2015-09-15", format = "%F"),
-#                             as.POSIXct("2015-10-31", format = "%F"))),
-# "2016" = scale_y_datetime(limits = c(as.POSIXct("2016-09-15", format = "%F"),
-#                             as.POSIXct("2016-10-31", format = "%F"))),
-# "2017" = scale_y_datetime(limits = c(as.POSIXct("2017-09-15", format = "%F"),
-#                             as.POSIXct("2017-10-31", format = "%F")))
-# )
+# Set the year so dates can have the same axis
+library(lubridate)
+summary$date.start3 <- summary$date.start
+year(summary$date.start3) <- 2015
+summary$date.end3 <- summary$date.end
+year(summary$date.end3) <- 2015
 
 pdf("./Plots/trackingPeriods.pdf",
     width = double.col.sup/fig.scale,
-    height = 10/fig.scale,
+    height = 9/fig.scale,
     useDingbats = FALSE)
 p1 <- ggplot(data = summary) +
-  geom_linerange(aes(x = individual_id, ymin = date.start, ymax = date.end, colour = scientific_name)) +
+  geom_linerange(aes(x = individual_id, ymin = date.start3, ymax = date.end3, colour = scientific_name)) +
   scale_colour_manual(values = c("#4daf4a", "#984ea3"), name = "Species") +
-  facet_wrap(~year, ncol = 1, scales = "free", drop = T) +
-  # facet_grid_sc(year~., scales = list(x = "free", y = scales_y)) +
+  facet_wrap(~year, ncol = 1, scales = "free_y", drop = T) +
   coord_flip() +
   theme_rr() +
   theme(panel.grid.minor = element_blank(),
@@ -667,6 +700,56 @@ p1 <- ggplot(data = summary) +
 print(p1)
 dev.off()
 
+# Summarise tracking durations
+# This is once trips have been delineated
+range(as.numeric(summary$duration))
+mean(as.numeric(summary$duration))
+
+# Get the track start and end before trip delineation
+foo <- dplyr::select(tr2, individual_id, date.time) %>%
+  group_by(individual_id) %>%
+  filter(row_number()==1 | row_number()==n())
+
+# Calculate duration
+foo$diff <- c(NA, diff(foo$date.time))
+
+# Select every second row
+foo <- foo[seq(2, nrow(foo), 2), ]
+
+# Merge with the trip long trip information
+foo <- merge(x = foo, y = summary[ , c("individual_id", "long.trip")], by = "individual_id")
+
+# Now check durations
+range(as.numeric(foo$diff))
+mean(as.numeric(foo$diff))
+
+# Were long.trip tags attached longer?
+t.test(
+  as.numeric(foo[foo$long.trip == "Y", ]$diff),
+as.numeric(foo[foo$long.trip == "N", ]$diff)
+)
+ggplot(data = foo, aes(x = long.trip, y = diff)) + geom_boxplot() +
+  labs(x = "Long trip?", y = "Tracking duration (days)") +
+  theme_bw()
+
+# Yes, but this is an artefact of the fieldwork (tags can only be retrieved
+# Birds that did not make long trips had enough time to do so
+range(as.numeric(foo[foo$long.trip == "N", ]$diff)) # Tracking duration range
+mean(as.numeric(foo[foo$long.trip == "N", ]$diff)) # And mean
+rm(foo)
+
+# Look at duration of long trip durations
+foo <- dplyr::filter(tr3, tr3$trip.Maxdist > 50) %>%
+  dplyr::select(., trip_id, date.time)  %>%
+  group_by(., trip_id) %>%
+  filter(row_number()==1 | row_number()==n())
+foo$diff <- c(NA, diff(foo$date.time))/24
+foo <- foo[seq(2, nrow(foo), 2), ]
+
+mean(foo$diff)
+range(foo$diff)
+
+detach(package:lubridate)
 #-----------------------------------
 # Save outputs
 saveRDS(tr3, "./Output/tracks_trips.RDS")

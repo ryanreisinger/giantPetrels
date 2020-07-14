@@ -13,8 +13,8 @@ dat <- read.csv("./Data/GP_sia_2019-09-20.csv", stringsAsFactors = F)
 ## Plotting stuff
 
 ## Figure widths in mm
-single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+single.col <- 70*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size
@@ -480,6 +480,33 @@ ggplot(d2, aes(x = groupname, y = d15N_RBC_studentized, colour = groupname)) +
 # -----------------------------
 # d15N response - plasma
 
+#All
+d2 <- d[!is.na(d$long.trip), ]
+d2 <- d2[!is.na(d2$d13C_DP) & !is.na(d2$d15N_Plas), ]
+
+# d2 <- d[!is.na(d$d13C_DP) & !is.na(d$d15N_Plas), ]
+m2 <- lm(formula = d15N_Plas ~ d13C_DP, data = d2)
+
+d2$d15N_Plas_residuals <- m2$residuals
+d2$d15N_Plas_studentized <- studres(m2)
+
+p <- ggplot(d2, aes(x = groupname, y = d15N_Plas_studentized, colour = groupname)) +
+  # geom_boxplot() +
+  geom_boxplot(fill = grey(0.8), colour = grey(0.8), outlier.shape = NA, width = 0.25) +
+  geom_quasirandom(width = 0.15) +
+  scale_color_manual(guide = F,
+                     values = c("#377eb8", "#e41a1c", "#984ea3", "#4daf4a"), name = "") +
+  labs(x = "",
+       y = "d15N Studentised residuals") +
+  theme_rr()
+
+pdf("./Plots/d15NresidualsAllTrips.pdf",
+    width = single.col/fig.scale, height = single.col/fig.scale,
+    useDingbats = FALSE)
+print(p)
+dev.off()
+
+
 #Long trips only?
 d2 <- d[!is.na(d$long.trip), ]
 d2 <- d2[!is.na(d2$d13C_DP) & !is.na(d2$d15N_Plas) & d2$long.trip == "Y", ]
@@ -521,7 +548,7 @@ p <- ggplot(d2, aes(x = groupname, y = d13C_DP, colour = groupname)) +
   geom_boxplot(fill = grey(0.8), colour = grey(0.8), outlier.shape = NA, width = 0.25) +
   geom_quasirandom(width = 0.15) +
   scale_color_manual(guide = F,
-                     values = c("#377eb8", "#e41a1c", "#984ea3", "#4daf4a"), name = "") +
+                     values = c("#e41a1c", "#4daf4a"), name = "") +
   labs(x = "",
        y = "d15N Studentised residuals") +
   theme_rr()

@@ -2,6 +2,7 @@
 
 ## Ryan Reisinger
 
+library(EMbC)
 # library(ggplot2)
 # library(argosfilter)
 # library(ggmap)
@@ -19,10 +20,48 @@ setwd("D:/PEI_Toppredators/Giant Petrels/Working/giantPetrels/")
 which.over <- 50
 # which.over <- 90
 
+#--------------------------------------------------------
+# Get data
 tr3 <- readRDS("./Output/tracks_trips.RDS")
 tr3 <- tr3[!is.na(tr3$individual_id), ]
 met <- read.csv("./Output/SummaryTable.csv", stringsAsFactors = F)
 
+#--------------------------------------------------------
+# Restrict data to foraging locations only
+dat <- tr3
+
+## Drop missing coordinates
+dat <- dat[!is.na(dat$decimal_longitude) & !is.na(dat$decimal_latitude), ]
+
+## EMbC
+ids <- unique(dat$trip_id)
+expth <- list()
+for (i in ids) {
+  this_dat <- dat[dat$trip_id == i, c("date.time", "decimal_longitude", "decimal_latitude")]
+  expth <- append(expth, list(this_dat))
+  rm(this_dat)
+}
+mybcp <- stbc(expth, info=-1)
+
+## Get output
+dat$embc_velocity <- mybcp@bC@X[,1]
+dat$embc_turnrad <- mybcp@bC@X[,2]
+dat$embc_label <- mybcp@bC@A
+
+## Fisher-Jenks breaks
+v_cut <- classInt::classIntervals(dat$embc_velocity, n = 2, style = "fisher")$brks[2]
+
+## Asign mode
+dat$mode <- "transit"
+dat[dat$embc_velocity < v_cut, "mode"] <- "restricted"
+
+## Filter
+dat <- dat[dat$mode == "restricted", ]
+
+## Return to 'tr3'
+tr3 <- dat
+
+#--------------------------------------------------------
 # Names for consistency with older code
 tr3 <- tr3[ , c("individual_id", "sp_code", "decimal_longitude", "decimal_latitude", "sex", "date.time")]
 names(tr3) <- c("ID", "sp_code", "Longitude", "Latitude", "sex", "Date")
@@ -33,19 +72,43 @@ tr3[tr3$sp_code == "SGP", "Species"] <- "Southern giant petrel"
 
 met <- met[ , c("individual_id", "scientific_name", "sex")]
 names(met) <- c("ID", "Species", "sex")
+
+# Add year information
+met$year <- NA
+met[grep(pattern = "2015", met$ID), "year"] <- 2015
+met[grep(pattern = "2016", met$ID), "year"] <- 2016
+met[grep(pattern = "2017", met$ID), "year"] <- 2017
+
+
+# Create ref
 ref <- met
 
-#--------------------------------------------------------
+# per year
+ref_2015 <- ref[ref$year == 2015, ]
+ref_2016 <- ref[ref$year == 2016, ]
+ref_2017 <- ref[ref$year == 2017, ]
 
+#--------------------------------------------------------
 # Count NGPS and Males (will use them as the reference levels)
-NGPS <- length(ref$Species[ref$Species == "Northern Giant Petrel"])
-Males <- length(ref$sex[ref$sex == "Male"])
+NGPS_2015 <- length(ref$Species[ref$Species == "Northern Giant Petrel" & ref$year == 2015])
+Males_2015 <- length(ref$sex[ref$sex == "Male" & ref$year == 2015])
+
+NGPS_2016 <- length(ref$Species[ref$Species == "Northern Giant Petrel" & ref$year == 2016])
+Males_2016 <- length(ref$sex[ref$sex == "Male" & ref$year == 2016])
+
+NGPS_2017 <- length(ref$Species[ref$Species == "Northern Giant Petrel" & ref$year == 2017])
+Males_2017 <- length(ref$sex[ref$sex == "Male" & ref$year == 2017])
 
 #---------------------------------------------------
 # 1. Swap species labels
 
+# Constrain permutations by year
+
 # Set up the frame
 nperm = 1000
+
+#---------
+# 2015
 comb <- matrix(nrow = nrow(ref), ncol = nperm)
 comb <- as.data.frame(comb)
 comb <- cbind.data.frame(ref, comb)
@@ -56,9 +119,11 @@ one <- sample(x = nrow(ref), size = NGPS, replace = F)
 comb[one, i + 3] <- "Northern giant petrel"
 }
 
+#---------
+
+
 # Run the tests based on the permutation frame
 # First, setup
-
 lms <- c(min(tr3$Longitude) - 5, max(tr3$Longitude) + 5, min(tr3$Latitude) - 5, max(tr3$Latitude) + 5)
 rt <- raster(ext = extent(lms), crs = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"), res = 0.05)
 rt.sp <- as(rt, "SpatialPixelsDataFrame")
@@ -80,15 +145,6 @@ o1 <- overlap.males[2, 1]
 o2 <- overlap.males[1, 2]
 overlap.males.real <- mean(o1, o2)
 overlap.males.real
-
-# Plot hr
-# vud.males <- getvolumeUD(kud.males)
-# vud.males.raster.ngp <- raster(as(vud.males$'Northern giant petrel',"SpatialPixelsDataFrame"))
-# vud.males.raster.sgp <- raster(as(vud.males$'Southern giant petrel',"SpatialPixelsDataFrame"))
-# vud.males.raster <- stack(vud.males.raster.ngp, vud.males.raster.sgp)
-# names(vud.males.raster) <- c("Northern giant petrel", "Southern giant petrel")
-# plot(vud.males.raster, col = terrain.colors(100))
-# writeRaster(vud.males.raster, file="vud.males.raster.grd", format = "raster")
 
 # Permute
 md <- s1.males[ , c("Longitude", "Latitude", "Species", "sex", "ID")]
@@ -129,14 +185,6 @@ o2 <- overlap.females[1, 2]
 overlap.females.real <- mean(o1, o2)
 overlap.females.real
 
-# Plot hr
-# vud.females <- getvolumeUD(kud.females)
-# vud.females.raster.ngp <- raster(as(vud.females$'Northern giant petrel',"SpatialPixelsDataFrame"))
-# vud.females.raster.sgp <- raster(as(vud.females$'Southern giant petrel',"SpatialPixelsDataFrame"))
-# vud.females.raster <- stack(vud.females.raster.ngp, vud.females.raster.sgp)
-# names(vud.females.raster) <- c("Northern giant petrel", "Southern giant petrel")
-# plot(vud.females.raster, col = terrain.colors(100))
-# writeRaster(vud.females.raster, file="vud.females.raster.grd", format = "raster")
 
 md <- s1.females[ , c("Longitude", "Latitude", "Species", "sex", "ID")]
 projt <- "+proj=longlat +ellps=WGS84 +datum=WGS84"
@@ -205,14 +253,6 @@ o2 <- overlap.ngp[1, 2]
 overlap.ngp.real <- mean(o1, o2)
 overlap.ngp.real
 
-# Plot hr
-# vud.ngp <- getvolumeUD(kud.ngp)
-# vud.ngp.raster.female <- raster(as(vud.ngp$Female,"SpatialPixelsDataFrame"))
-# vud.ngp.raster.male<- raster(as(vud.ngp$Male,"SpatialPixelsDataFrame"))
-# vud.ngp.raster <- stack(vud.ngp.raster.female, vud.ngp.raster.male)
-# names(vud.ngp.raster) <- c("Female", "Male")
-# writeRaster(vud.ngp.raster, file="vud.ngp.raster.grd", format = "raster")
-# plot(vud.ngp.raster, col = terrain.colors(100))
 
 # Permute
 md <- s1.ngp[ , c("Longitude", "Latitude", "Species", "sex", "ID")]
@@ -253,14 +293,6 @@ o2 <- overlap.sgp[1, 2]
 overlap.sgp.real <- mean(o1, o2)
 overlap.sgp.real
 
-# Plot hr
-# vud.sgp <- getvolumeUD(kud.sgp)
-# vud.sgp.raster.female <- raster(as(vud.sgp$Female,"SpatialPixelsDataFrame"))
-# vud.sgp.raster.male<- raster(as(vud.sgp$Male,"SpatialPixelsDataFrame"))
-# vud.sgp.raster <- stack(vud.sgp.raster.female, vud.sgp.raster.male)
-# names(vud.sgp.raster) <- c("Female", "Male")
-# plot(vud.sgp.raster, col = terrain.colors(100))
-# writeRaster(vud.sgp.raster, file="vud.sgp.raster.grd", format = "raster")
 
 md <- s1.sgp[ , c("Longitude", "Latitude", "Species", "sex", "ID")]
 projt <- "+proj=longlat +ellps=WGS84 +datum=WGS84"

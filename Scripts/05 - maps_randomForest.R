@@ -21,6 +21,7 @@ library(maptools)
 # Read in these data
 tr <- readRDS("./Output/tracks_trips_envar.RDS")
 
+
 #-----------------------------------------------------
 # Maps
 #-----------------------------------------------------
@@ -41,7 +42,7 @@ maxy <- -30
 
 ## Figure widths in mm
 single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size
@@ -168,10 +169,9 @@ p2 <- p2 + scale_fill_gradientn(colours=parula(100),
                                 guide = FALSE,
                                 name = "SST",
                                 limits = c(-2, 24))
-# p2 <- p2 + geom_path(data = myOrsi, aes(x = long, y = lat, group = group), colour = "white")
-p2 <- p2 + geom_point(data = tr, aes(x = tr$lon, y = tr$lat, colour = sp_code), size = 0.6) +
+p2 <- p2 + geom_path(data = frnts, aes(x = lon, y = lat, group = name), linetype = 1, colour = "grey90")
+p2 <- p2 + geom_point(data = tr, aes(x = tr$lon, y = tr$lat, colour = sp_code), size = 0.1) +
   facet_wrap(~ Species2, ncol = 2) +
-  # scale_colour_manual(values = c("#4daf4a", "#984ea3"), guide = FALSE) # coloured points
   scale_colour_manual(values = c("black", "black"), guide = FALSE)
 p2 <- p2 + coord_quickmap()
 p2 <- p2 + labs(title = "a")
@@ -187,7 +187,7 @@ p2 <- p2 + theme_bw() + theme(panel.grid.minor = element_blank(),
                               axis.title.y = element_blank())
 world <- borders("world", colour = "black", fill = "grey", xlim = c(minx, maxx), ylim = c(miny, maxy))
 p2 <- p2 + world #+ xlim(minx, maxx) + ylim(miny, maxy)
-p2 <- p2 + annotate("point", x = 37.74, y = -46.91, size = 3, colour = "red")
+p2 <- p2 + annotate("point", x = 37.74, y = -46.91, size = 1.5, colour = "red")
 # p2
 
 #-----------------------------------
@@ -222,7 +222,20 @@ sst.small.p <- data.frame(sst.small.p)
 colnames(sst.small.p) <- c("lon", "lat", "val")
 
 # Only near trips
-dat.short <- tr[tr$Maxdist < 150, ]
+dat.short <- tr[tr$Maxdist < 50, ]
+
+# Create a data frame with the nest locations
+deploy <- tr[, c("track_id", "sp_code", "deployment_decimal_latitude",
+                  "deployment_decimal_longitude")]
+deploy <- deploy[!duplicated(deploy$track_id), ]
+
+deploy.ngp <- deploy[deploy$sp_code == "NGP", ]
+# deploy.ngp$sp <- factor("Northern giant petrel",levels = c("Northern giant petrel",
+#                                                            "Southern giant petrel"))
+deploy.sgp <- deploy[deploy$sp_code == "SGP", ]
+# deploy.sgp$sp <- factor("Southern giant petrel",levels = c("Northern giant petrel",
+#                                                            "Southern giant petrel"))
+
 
 # Bathymetry
 # p3 <- ggplot(data = b5.p, aes(x = lon, y = lat))
@@ -252,10 +265,16 @@ p3 <- p3 + scale_fill_gradientn(colours=parula(100),
                                 limits = c(-2, 24))
 p3 <- p3 + geom_polygon(data = island.df, aes(x = long, y = lat, group = group), fill = "grey")
 p3 <- p3 + geom_path(data = island.df, aes(x = long, y = lat, group = group), colour = "black")
-p3 <- p3 + geom_point(data = dat.short, aes(x = dat.short$lon, y = dat.short$lat, colour = sp_code), size = 0.6) +
+p3 <- p3 + geom_point(data = dat.short, aes(x = dat.short$lon, y = dat.short$lat, colour = sp_code), size = 0.3) +
   facet_wrap(~sp_code, nrow = 2) +
   # scale_colour_manual(values = c("#4daf4a", "#984ea3"), guide = FALSE)
-  scale_colour_manual(values = c("black", "black"), guide = FALSE)
+  scale_colour_manual(values = c("black", "black"), guide = FALSE) +
+  geom_point(data = deploy.ngp, aes(x = deploy.ngp$deployment_decimal_longitude,
+                                    y = deploy.ngp$deployment_decimal_latitude),
+                                    colour = "red", size = 1.5) +
+  geom_point(data = deploy.sgp, aes(x = deploy.sgp$deployment_decimal_longitude,
+                                    y = deploy.sgp$deployment_decimal_latitude),
+             colour = "red", size = 1.5)
 p3 <- p3 + coord_quickmap()
 p3 <- p3 + labs(title = "b")
 p3 <- p3 + scale_x_continuous(expand = c(0,0), limits = c(37.45, 38.2))
@@ -292,14 +311,14 @@ dev.off()
 pdf("./Plots/mapCombined.pdf",
     width = double.col/fig.scale, height = double.col/fig.scale,
     useDingbats = FALSE)
-cowplot::plot_grid(p2, p3, axis = "t", ncol = 2, rel_widths = c(2, 1.5))
+cowplot::plot_grid(p2, p3, axis = "t", ncol = 2, rel_widths = c(1.89, 1.5))
 dev.off()
 
 tiff("./Plots/mapCombined.tiff",
      width = double.col/fig.scale, height = double.col/fig.scale,
      res = 600,
      units = "in")
-cowplot::plot_grid(p2, p3, axis = "t", ncol = 2, rel_widths = c(2, 1.5))
+cowplot::plot_grid(p2, p3, axis = "t", ncol = 2, rel_widths = c(1.89, 1.5))
 dev.off()
 
 # Remove dummy variable
@@ -312,56 +331,51 @@ tr$Species2 <- NULL
 # Lat & Lon
 library(beanplot)
 
-# Latitude
-beanplot(lat ~ sp_code, data = tr[tr$sex == "Male", ],
-         main = NULL, ylab = "Latitude", side = "both",
-         ylim = c(min(tr[tr$sex == "Male", "lat"], na.rm = T), max(tr[tr$sex == "Male", "lat"], na.rm = T)),
-         bw = "nrd",
-         overallline = "median",
-         what = c(1,1,1,0), frame.plot = F,
-         border = NA, col = list("#4daf4a", "#984ea3"))
+pdf("./Plots/envarDensityBean.pdf",
+    width = (single.col*1.6/fig.scale),
+    height = (single.col*1.6/fig.scale),
+    useDingbats = FALSE)
 
-beanplot(lat ~ sp_code, data = tr[tr$sex == "Female", ],
-         main = NULL, ylab = "Latitude", side = "both",
-         ylim = c(min(tr[tr$sex == "Female", "lat"]), max(tr[tr$sex == "Female", "lat"])),
+par(mfrow = c(2, 2))
+
+# Latitude
+beanplot(lat ~ sp_code + sex, data = tr,
+         main = NULL, ylab = "Latitude (degrees)", side = "both",
+         ylim = c(min(tr$lat, na.rm = T), max(tr$lat, na.rm = T)),
          bw = "nrd",
          overallline = "median",
          what = c(1,1,1,0), frame.plot = F,
          border = NA, col = list("#4daf4a", "#984ea3"))
 
 # SST
-beanplot(SST ~ Species, data = tr3[tr3$sex == "Male", ],
-         main = NULL, ylab = "SST", side = "both",
-         ylim = c(min(tr3[tr3$sex == "Male", "SST"], na.rm = T), max(tr3[tr3$sex == "Male", "SST"], na.rm = T)),
+beanplot(SST ~ sp_code + sex, data = tr,
+         main = NULL, ylab = "SST (degrees C)", side = "both",
+         ylim = c(min(tr$SST, na.rm = T), max(tr$SST, na.rm = T)),
          bw = "nrd",
          overallline = "median",
          what = c(1,1,1,0), frame.plot = F,
          border = NA, col = list("#4daf4a", "#984ea3"))
 
-beanplot(SST ~ Species, data = tr3[tr3$sex == "Female", ],
-         main = NULL, ylab = "SST", side = "both",
-         ylim = c(min(tr3[tr3$sex == "Female", "SST"], na.rm = T), max(tr3[tr3$sex == "Female", "SST"], na.rm = T)),
+# CHL
+tr$logCHL <- log10(tr$CHL)
+beanplot(logCHL ~ sp_code + sex, data = tr,
+         main = NULL, ylab = "log CHL (log10(mg/m^3))", side = "both",
+         ylim = c(min(tr$logCHL, na.rm = T), max(tr$logCHL, na.rm = T)),
          bw = "nrd",
          overallline = "median",
          what = c(1,1,1,0), frame.plot = F,
          border = NA, col = list("#4daf4a", "#984ea3"))
 
 # Depth
-beanplot(DEPTH ~ Species, data = tr3[tr3$sex == "Male", ],
-         main = NULL, ylab = "DEPTH", side = "both",
-         ylim = c(min(tr3[tr3$sex == "Male", "DEPTH"], na.rm = T), max(tr3[tr3$sex == "Male", "DEPTH"], na.rm = T)),
+beanplot(DEPTH2 ~ sp_code + sex, data = tr,
+         main = NULL, ylab = "DEPTH (m)", side = "both",
+         ylim = c(min(tr$DEPTH2, na.rm = T), max(tr$DEPTH2, na.rm = T)),
          bw = "nrd",
          overallline = "median",
          what = c(1,1,1,0), frame.plot = F,
          border = NA, col = list("#4daf4a", "#984ea3"))
 
-beanplot(DEPTH ~ Species, data = tr3[tr3$sex == "Female", ],
-         main = NULL, ylab = "DEPTH", side = "both",
-         ylim = c(min(tr3[tr3$sex == "Female", "DEPTH"], na.rm = T), max(tr3[tr3$sex == "Female", "DEPTH"], na.rm = T)),
-         bw = "nrd",
-         overallline = "median",
-         what = c(1,1,1,0), frame.plot = F,
-         border = NA, col = list("#4daf4a", "#984ea3"))
+dev.off()
 
 #-----------------------------------
 # Try split violins with GGPlot

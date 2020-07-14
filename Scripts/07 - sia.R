@@ -15,7 +15,7 @@ dat <- read.csv("./Data/GP_sia_2019-09-20.csv", stringsAsFactors = F)
 
 ## Figure widths in mm
 single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size

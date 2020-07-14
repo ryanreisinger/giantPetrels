@@ -33,7 +33,7 @@ dat <- read.csv("./Data/GP_sia_2019-09-20.csv", stringsAsFactors = F)
 
 ## Figure widths in mm
 single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size
@@ -115,6 +115,12 @@ nrow(d)
 ## How many of these were tracked
 nrow(d[!is.na(d$Maxdist), ])
 
+## Add year
+d$year <- NULL
+d[grep(pattern = "2015", d$Individual_id), "year"] <- 2015
+d[grep(pattern = "2016", d$Individual_id), "year"] <- 2016
+d[grep(pattern = "2017", d$Individual_id), "year"] <- 2017
+
 #----------------------------------------------
 ## Format the dataframe for SIBER
 datSiber <- d[ , c("d13C_DP", "d15N_Plas", "sex", "Species")]
@@ -158,8 +164,8 @@ plotSiberObject(siber.example,
 
 first.plot <- ggplot(data = datSiber, aes(iso1, iso2)) +
   geom_point(aes(color = factor(group)), size = 2) +
-  scale_x_continuous(limits = c(-24, -17.5)) +
-  scale_y_continuous(limits = c(11, 16)) +
+  scale_x_continuous(limits = c(-24, -17.5)) + # max = -16 for prey, -17.5 for GPs only
+  scale_y_continuous(limits = c(11, 16)) + # min = 8 for prey, 11 for GPs only
   scale_color_manual(values = c("#377eb8", "#e41a1c", "#984ea3", "#4daf4a")) +
   ylab(expression(paste(delta^{15}, "N (\u2030)"))) +
   xlab(expression(paste(delta^{13}, "C (\u2030)"))) + 
@@ -229,16 +235,31 @@ dev.off()
 
 #----------------------------------------------
 ## With respect to other species from Reisinger et al. 2016
+## DOI: 10.3354/meps11676
+## Table 2
+## and Walters 2014 (in Reisinger et al. 2016)
+
+# Not adjusted
 # prey <- read.csv("./Data/Prey_SIA.csv", stringsAsFactors = F)
-# 
-# prey.plot <- third.plot +
-#   geom_point(data = prey, aes(x = d13C, y = d15N, shape = Species), inherit.aes = F) +
-#   geom_errorbar(data = prey, aes(x = d13C, ymin = d15N - d15N.SD, ymax = d15N + d15N.SD),
-#                 inherit.aes = F) + 
-#   geom_errorbarh(data = prey, aes(y = d15N, xmin = d13C - d13C.SD, xmax = d13C + d13C.SD),
-#                  inherit.aes = F)
-# 
-# print(prey.plot)
+
+# Or, adjusted to represent muscle (see method in Reisinger et al. 2016)
+prey <- read.csv("./Data/Prey_SIA_Adjusted.csv", stringsAsFactors = F)
+
+# Leave out Patagonian toothfish
+prey <- prey[prey$Species != "Patagonian toothfish", ]
+
+prey.plot <- third.plot +
+  geom_point(data = prey, aes(x = d13C, y = d15N, shape = Species), size = 2.5, inherit.aes = F) +
+  geom_errorbar(data = prey, aes(x = d13C, ymin = d15N - d15N.SD, ymax = d15N + d15N.SD),
+                inherit.aes = F) +
+  geom_errorbarh(data = prey, aes(y = d15N, xmin = d13C - d13C.SD, xmax = d13C + d13C.SD),
+                 inherit.aes = F)
+
+pdf("./Plots/SIAbiplotPrey.pdf",
+    width = 5/fig.scale + 1, height = single.col/fig.scale,
+    useDingbats = FALSE)
+print(prey.plot)
+dev.off()
 
 #----------------------------------------------
 ## SEAc sizes
@@ -321,15 +342,27 @@ prop.over.F <- prop.over
 #1. NGPS
 nperm <- 1000
 
+datSiber$year <- d$year
 datPerm <- datSiber
 datPerm <- datPerm[datPerm$group == "NGP-Male" | datPerm$group == "NGP-Female", ] #select the group of interest
 
 perm.overlaps <- list()
 
 for (i in 1:nperm) {
-#Permute
-datPermuted <- datPerm
-datPermuted[ , c("group", "community")] <- datPerm[sample(nrow(datPerm)), c("group", "community")]
+
+#Permute by years
+
+datPermuted_2015 <- datPerm[datPerm$year == 2015, ]
+datPermuted_2016 <- datPerm[datPerm$year == 2016, ]
+datPermuted_2017 <- datPerm[datPerm$year == 2017, ]
+
+datPermuted_2015[ , c("group", "community")] <- datPermuted_2015[sample(nrow(datPermuted_2015)), c("group", "community")]
+datPermuted_2016[ , c("group", "community")] <- datPermuted_2016[sample(nrow(datPermuted_2016)), c("group", "community")]
+datPermuted_2017[ , c("group", "community")] <- datPermuted_2017[sample(nrow(datPermuted_2017)), c("group", "community")]
+
+datPermuted <- rbind(datPermuted_2015, datPermuted_2016, datPermuted_2017)
+datPermuted$year <- NULL
+
 #calculate
 siber.perm <- createSiberObject(datPermuted)
 ellipse1 <- "NGP-Female.NGP-Female"
@@ -360,6 +393,7 @@ zapsmall(binconf(ngp.p, nperm, method = 'exact'))
 #2. SGPS
 nperm <- 1000
 
+datSiber$year <- d$year
 datPerm <- datSiber
 datPerm <- datPerm[datPerm$group == "SGP-Male" | datPerm$group == "SGP-Female", ] #select the group of interest
 
@@ -367,8 +401,17 @@ perm.overlaps <- list()
 
 for (i in 1:nperm) {
   #Permute
-  datPermuted <- datPerm
-  datPermuted[ , c("group", "community")] <- datPerm[sample(nrow(datPerm)), c("group", "community")]
+  datPermuted_2015 <- datPerm[datPerm$year == 2015, ]
+  datPermuted_2016 <- datPerm[datPerm$year == 2016, ]
+  datPermuted_2017 <- datPerm[datPerm$year == 2017, ]
+  
+  datPermuted_2015[ , c("group", "community")] <- datPermuted_2015[sample(nrow(datPermuted_2015)), c("group", "community")]
+  datPermuted_2016[ , c("group", "community")] <- datPermuted_2016[sample(nrow(datPermuted_2016)), c("group", "community")]
+  datPermuted_2017[ , c("group", "community")] <- datPermuted_2017[sample(nrow(datPermuted_2017)), c("group", "community")]
+  
+  datPermuted <- rbind(datPermuted_2015, datPermuted_2016, datPermuted_2017)
+  datPermuted$year <- NULL
+  
   #calculate
   siber.perm <- createSiberObject(datPermuted)
   ellipse1 <- "SGP-Female.SGP-Female"
@@ -400,6 +443,7 @@ zapsmall(binconf(sgp.p, nperm, method = 'exact'))
 #3. Females
 nperm <- 1000
 
+datSiber$year <- d$year
 datPerm <- datSiber
 datPerm <- datPerm[datPerm$group == "NGP-Female" | datPerm$group == "SGP-Female", ] #select the group of interest
 
@@ -407,8 +451,17 @@ perm.overlaps <- list()
 
 for (i in 1:nperm) {
   #Permute
-  datPermuted <- datPerm
-  datPermuted[ , c("group", "community")] <- datPerm[sample(nrow(datPerm)), c("group", "community")]
+  datPermuted_2015 <- datPerm[datPerm$year == 2015, ]
+  datPermuted_2016 <- datPerm[datPerm$year == 2016, ]
+  datPermuted_2017 <- datPerm[datPerm$year == 2017, ]
+  
+  datPermuted_2015[ , c("group", "community")] <- datPermuted_2015[sample(nrow(datPermuted_2015)), c("group", "community")]
+  datPermuted_2016[ , c("group", "community")] <- datPermuted_2016[sample(nrow(datPermuted_2016)), c("group", "community")]
+  datPermuted_2017[ , c("group", "community")] <- datPermuted_2017[sample(nrow(datPermuted_2017)), c("group", "community")]
+  
+  datPermuted <- rbind(datPermuted_2015, datPermuted_2016, datPermuted_2017)
+  datPermuted$year <- NULL
+  
   #calculate
   siber.perm <- createSiberObject(datPermuted)
   ellipse1 <- "SGP-Female.SGP-Female"
@@ -440,6 +493,7 @@ zapsmall(binconf(f.p, nperm, method = 'exact'))
 #4. Males
 nperm <- 1000
 
+datSiber$year <- d$year
 datPerm <- datSiber
 datPerm <- datPerm[datPerm$group == "NGP-Male" | datPerm$group == "SGP-Male", ] #select the group of interest
 
@@ -447,8 +501,17 @@ perm.overlaps <- list()
 
 for (i in 1:nperm) {
   #Permute
-  datPermuted <- datPerm
-  datPermuted[ , c("group", "community")] <- datPerm[sample(nrow(datPerm)), c("group", "community")]
+  datPermuted_2015 <- datPerm[datPerm$year == 2015, ]
+  datPermuted_2016 <- datPerm[datPerm$year == 2016, ]
+  datPermuted_2017 <- datPerm[datPerm$year == 2017, ]
+  
+  datPermuted_2015[ , c("group", "community")] <- datPermuted_2015[sample(nrow(datPermuted_2015)), c("group", "community")]
+  datPermuted_2016[ , c("group", "community")] <- datPermuted_2016[sample(nrow(datPermuted_2016)), c("group", "community")]
+  datPermuted_2017[ , c("group", "community")] <- datPermuted_2017[sample(nrow(datPermuted_2017)), c("group", "community")]
+  
+  datPermuted <- rbind(datPermuted_2015, datPermuted_2016, datPermuted_2017)
+  datPermuted$year <- NULL
+  
   #calculate
   siber.perm <- createSiberObject(datPermuted)
   ellipse1 <- "SGP-Male.SGP-Male"

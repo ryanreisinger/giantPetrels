@@ -19,7 +19,7 @@ setwd("D:/PEI_Toppredators/Giant Petrels/Working/giantPetrels")
 
 ## Figure widths in mm
 single.col <- 84*0.0393701
-double.col <- 174*0.0393701
+double.col <- 140*0.0393701
 double.col.sup <- 150*0.0393701
 
 ## Scaling for font size
@@ -43,7 +43,7 @@ s.males <- dat[dat$sex == "Male", ]
 s.females <- dat[dat$sex == "Female", ]
 
 # Short trips only
-s.short <- dat[dat$trip.Maxdist < 150, ]
+s.short <- dat[dat$trip.Maxdist < 50, ]
 
 # Grid for UD
 lms <- c(min(s$decimal_longitude, na.rm = T) - 5,
@@ -200,11 +200,6 @@ ngps$sp <- "Northern giant petrel"
 kern.short <- rbind(sgps, ngps)
 kern.short <- kern.short[kern.short$val <= 95, ]
 
-
-# Add the Orsifronts
-# myOrsi <- fortify(orsifronts)
-# myOrsi <- myOrsi[myOrsi$id %in% c("stf", "saf", "pf"), ]
-
 # Get Southern Ocean fronts from Park & Durand 2019
 # https://doi.org/10.17882/59800
 
@@ -304,6 +299,18 @@ island.df = plyr::join(island.points, island@data, by = "id")
 # Crop to Marion only
 island.df <- island.df[island.df$lat < -46.7, ]
 
+# Create a copy of deployment locations
+deploy <- dat[, c("track_id", "sp_code", "deployment_decimal_latitude",
+                  "deployment_decimal_longitude")]
+deploy <- deploy[!duplicated(deploy$track_id), ]
+
+deploy.ngp <- deploy[deploy$sp_code == "NGP", ]
+deploy.ngp$sp <- factor("Northern giant petrel",levels = c("Northern giant petrel",
+                                                           "Southern giant petrel"))
+deploy.sgp <- deploy[deploy$sp_code == "SGP", ]
+deploy.sgp$sp <- factor("Southern giant petrel",levels = c("Northern giant petrel",
+                                                           "Southern giant petrel"))
+
 # # And the UDs
 # kern.short <- kern.short[kern.short$lon > minx & kern.short$lon < maxx, ]
 # kern.short <- kern.short[kern.short$lat > miny & kern.short$lat < maxy, ]
@@ -312,6 +319,7 @@ p3 <- ggplot() +
   geom_polygon(data = island.df, aes(x = long, y = lat, group = group), fill = "grey") +
   geom_tile(data = kern.short, aes(x = lon, y = lat, fill = val)) +
   geom_path(data = island.df, aes(x = long, y = lat, group = group), colour = "black") +
+  # geom_point(data = island.df, aes(x = long, y = lat, group = group), colour = "black") +
   facet_grid(sp ~ .) +
   scale_fill_viridis(direction = 1, option = "plasma",
                               name = "Utilisation \ndistribution\n(%)") +
@@ -326,13 +334,15 @@ p3 <- ggplot() +
                               axis.title.x = element_blank(),
                               axis.title.y = element_blank()) +
   theme_rr() +
-  labs(x = "Longitude", y = "Latitude") #+
-  # annotate(geom = "point",
-  #          x = dat$deployment_decimal_longitude,
-  #          y = dat$deployment_decimal_latitude,
-  #          shape = 18,
-  #          size = 2.5,
-  #          colour = "white")
+  labs(x = "Longitude", y = "Latitude") +
+  geom_point(data = deploy.ngp, aes(x = deployment_decimal_longitude,
+                                    y = deployment_decimal_latitude,
+                                    group = sp),
+             shape = 18, size = 2.5, colour = "white") +
+  geom_point(data = deploy.sgp, aes(x = deployment_decimal_longitude,
+                                    y = deployment_decimal_latitude,
+                                    group = sp),
+             shape = 18, size = 2.5, colour = "white")
 
 pdf("./Plots/utilizationDistributionsShort.pdf",
     width = single.col/fig.scale,
