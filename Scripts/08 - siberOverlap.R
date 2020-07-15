@@ -175,17 +175,6 @@ first.plot <- ggplot(data = datSiber, aes(iso1, iso2)) +
         panel.grid = element_blank())
 print(first.plot)
 
-# second.plot <- first.plot + facet_wrap(~factor(group))
-# print(second.plot)
-
-# Add frontal locations from Jaeger et al
-# Don't add these, since these are all birds,
-# not only those foraging at sea
-
-# second.plot <- first.plot + geom_vline(xintercept = -22.9, colour = "gray") + #PF
-#   geom_vline(xintercept = -20.1, colour = "gray") #STF
-# 
-# print(second.plot)
 
 #---------
 # Loop over data to create ellipses
@@ -642,10 +631,15 @@ first.plot <- ggplot(data = datSiber, aes(iso1, iso2)) +
         panel.grid = element_blank())
 print(first.plot)
 
-# Add frontal locations from Jaeger et al
+# Add frontal locations from Carpenter-Kling et al. 2020
+# https://doi.org/10.1186/s40462-020-00208-8
+# Table 3
 
-second.plot <- first.plot + geom_vline(xintercept = -22.9, colour = "gray") + #PF
-  geom_vline(xintercept = -20.1, colour = "gray") #STF
+second.plot <- first.plot +
+  geom_vline(xintercept = -21.4, colour = "darkgray") + #PF for NGPs
+  geom_vline(xintercept = -22.6, colour = "darkgray") + #PF for SGPs
+  geom_vline(xintercept = -19.9, colour = "darkgray") + #STF for NGPs
+  geom_vline(xintercept = -21.8, colour = "darkgray") #STF for SGPs
 
 print(second.plot)
 
