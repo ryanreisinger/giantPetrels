@@ -1,5 +1,6 @@
 ## Split violins, from:
 ## https://stackoverflow.com/questions/35717353/split-violin-plot-with-ggplot2
+## by user jan-glx
 
 require(ggplot2)
 
