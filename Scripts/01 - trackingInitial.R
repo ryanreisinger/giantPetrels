@@ -584,7 +584,7 @@ summary$mean.lat <- NA
 summary$long.trip <- NA
 summary$short.trip <- NA
 
-summary$land.percent
+summary$land.percent <- NA
 
 hold <- summary[0, ]
 for (i in 1:nrow(summary)) {
@@ -740,7 +740,7 @@ rm(foo)
 
 # Look at duration of long trip durations
 foo <- dplyr::filter(tr3, tr3$trip.Maxdist > 50) %>%
-  dplyr::select(., trip_id, date.time)  %>%
+  dplyr::select(., trip_id, date.time, trip.Maxdist)  %>%
   group_by(., trip_id) %>%
   filter(row_number()==1 | row_number()==n())
 foo$diff <- c(NA, diff(foo$date.time))/24
